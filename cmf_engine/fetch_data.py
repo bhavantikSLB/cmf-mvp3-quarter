@@ -78,7 +78,7 @@ class TeleportData:
         #c4c_df = c4c_df.groupby(["YEARMONTH","SL BASIN (CODE)"])["TOTAL_WEIGHTED_FCST"].sum().reset_index()
 
         # C4C
-        c4c_df['quarter'] = pd.PeriodIndex(c4c_df['YEARMONTH'], freq='Q').strftime('Q%q %Y')
+        c4c_df['quarter'] = pd.PeriodIndex(c4c_df['YEARMONTH'], freq='Q').strftime('%YQ%q')
         c4c_df = c4c_df.drop(columns='YEARMONTH')
 
         c4c_df = c4c_df.groupby(['SL BASIN (CODE)', 'SL DIVISION (CODE)','quarter'])['TOTAL_WEIGHTED_FCST'].sum().reset_index()
@@ -91,7 +91,7 @@ class TeleportData:
         
         
         # GAC
-        gac_df['quarter'] = pd.PeriodIndex(gac_df['YEARMONTH'], freq='Q').strftime('Q%q %Y')
+        gac_df['quarter'] = pd.PeriodIndex(gac_df['YEARMONTH'], freq='Q').strftime('%YQ%q')
         gac_df = gac_df.drop(columns='YEARMONTH')
 
         gac_df = gac_df.groupby(["quarter","SL BASIN (CODE)","SCENARIO"])["TOTAL_RIG_COUNT_BASIN"].mean().reset_index()
@@ -115,7 +115,7 @@ class TeleportData:
         
         # HFM
 
-        hfm_df['quarter'] = pd.PeriodIndex(hfm_df['YEARMONTH'], freq='Q').strftime('Q%q %Y')
+        hfm_df['quarter'] = pd.PeriodIndex(hfm_df['YEARMONTH'], freq='Q').strftime('%YQ%q')
         hfm_df = hfm_df.drop(columns='YEARMONTH')
 
         hfm_df = hfm_df.groupby(["quarter","SL BASIN (CODE)","SL DIVISION (CODE)","SCENARIO"])["TOTAL"].sum().reset_index()         
@@ -152,9 +152,9 @@ class TeleportData:
     def get_eia_data(cxn_ods):
         oil_query = """ SELECT * FROM ODS.eia_oil_prices """
         oil_df = pd.read_sql(oil_query,cxn_ods)
-        oil_df['quarter'] = pd.PeriodIndex(oil_df['YEARMONTH'], freq='Q').strftime('Q%q %Y')
+        oil_df['quarter'] = pd.PeriodIndex(oil_df['YEARMONTH'], freq='Q').strftime('%YQ%q')
         oil_df = oil_df.drop(columns='YEARMONTH')
         
-        oil_df = oil_df.groupby(["quarter"])["BC_OIL_PRICE_USD","BC_OIL_PRICE_USD"].mean().reset_index() 
+        oil_df = oil_df.groupby(["quarter"])["BC_OIL_PRICE_USD","WTI_OIL_PRICE_USD"].mean().reset_index() 
         return oil_df
 
