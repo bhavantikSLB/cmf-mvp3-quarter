@@ -34,6 +34,6 @@ class postprocess:
 
         multi_model_df[multi_model_df["SL BASIN (CODE)"]=="Worldwide"].sort_values(["SL BASIN (CODE)","quarter","model"]).dropna()
         multi_model_df = multi_model_df.drop_duplicates()
-        multi_model_df.to_sql(con=self.cxn_ODS, name='cmf3_1_mvp3_Q2',if_exists = 'append',index=None)
+        multi_model_df.to_sql(con=self.cxn_ODS, name='cmf3_1_mvp3_Q1',if_exists = 'append',index=None)
        # print(" Written for Model - {}".format(, model))
 
