@@ -31,10 +31,10 @@ class TrainingTransformer(TransformerMixin, BaseEstimator):
     def __init__(self,start_date,interval,basins):
 
         temp_date = pd.to_datetime(start_date,format="%Y-%m-%d")
-        self.start_date = temp_date.strftime('%Y Q{}'.format( (temp_date.month - 1) // 3 + 1))
+        self.start_date = temp_date.strftime('%YQ{}'.format( (temp_date.month - 1) // 3 + 1))
         self.interval = interval
         temp_date_2 = pd.to_datetime(date.today() + relativedelta(months=+self.interval*3),format="%Y-%m-%d")
-        self.end_date = temp_date_2.strftime('%Y Q{}'.format( (temp_date_2.month - 1) // 3 + 1))
+        self.end_date = temp_date_2.strftime('%YQ{}'.format( (temp_date_2.month - 1) // 3 + 1))
         self.basins = basins
 
 
@@ -46,7 +46,7 @@ class TrainingTransformer(TransformerMixin, BaseEstimator):
 #         X["YEARMONTH"] = pd.to_datetime(X["YEARMONTH"], format="%Y-%m")
         X = X.merge(oil_df)
         X = X.sort_values(["quarter"])
-        X = X[(X["quarter"]>=self.start_date)&(X["quarter"]<self.end_date)]
+        
 
 
         # Aggregate
@@ -116,7 +116,7 @@ class TrainingTransformer(TransformerMixin, BaseEstimator):
 #         X_agg["quarter_flag"] = 0
 #         X_agg.loc[X_agg.index.month%3==0,'quarter_flag']=1
 
-
+        X_agg = X_agg[(X_agg.index>=self.start_date)&(X_agg.index<self.end_date)]
         training_df = X_agg[X_agg["rev"]>0]
 
         return (training_df)
@@ -135,20 +135,20 @@ class InferenceRevTransformer(TransformerMixin, BaseEstimator):
         self.interval = interval
         self.pickup_date = pd.to_datetime(pickup_date,format="%Y-%m-%d")
         
-        temp_date = pd.to_datetime(self.pickup_date + relativedelta(months=-4),format="%Y-%m-%d")
-        self.buffer_start_date = temp_date.strftime('%Y Q{}'.format( (temp_date.month - 1) // 3 + 1))
+        temp_date = pd.to_datetime(self.pickup_date + relativedelta(months=-12),format="%Y-%m-%d")
+        self.buffer_start_date = temp_date.strftime('%YQ{}'.format( (temp_date.month - 1) // 3 + 1))
         
-        temp_date2 = pd.to_datetime(self.pickup_date + relativedelta(months=-1),format="%Y-%m-%d")
-        self.start_date = temp_date2.strftime('%Y Q{}'.format( (temp_date2.month - 1) // 3 + 1))
+        temp_date2 = pd.to_datetime(self.pickup_date + relativedelta(months=-3),format="%Y-%m-%d")
+        self.start_date = temp_date2.strftime('%YQ{}'.format( (temp_date2.month - 1) // 3 + 1))
         
-        temp_date3 = pd.to_datetime(self.pickup_date + relativedelta(months=+(self.interval+3)),format="%Y-%m-%d")
-        self.buffer_end_date = temp_date3.strftime('%Y Q{}'.format( (temp_date3.month - 1) // 3 + 1))
+        temp_date3 = pd.to_datetime(self.pickup_date + relativedelta(months=+(self.interval*3+9)),format="%Y-%m-%d")
+        self.buffer_end_date = temp_date3.strftime('%YQ{}'.format( (temp_date3.month - 1) // 3 + 1))
         
-        temp_date4 = pd.to_datetime(self.pickup_date + relativedelta(months=+(self.interval-1)),format="%Y-%m-%d")
-        self.end_date = temp_date4.strftime('%Y Q{}'.format( (temp_date4.month - 1) // 3 + 1))
+        temp_date4 = pd.to_datetime(self.pickup_date + relativedelta(months=+(self.interval*3-3)),format="%Y-%m-%d")
+        self.end_date = temp_date4.strftime('%YQ{}'.format( (temp_date4.month - 1) // 3 + 1))
         
         self.basins = basins
-        self.pickup_date = pickup_date.strftime('%Y Q{}'.format( (pickup_date.month - 1) // 3 + 1))
+        self.pickup_date = pickup_date.strftime('%YQ{}'.format( (pickup_date.month - 1) // 3 + 1))
 
     def fit(self, X, y=None):
         self.columns_ = X.columns
@@ -157,9 +157,9 @@ class InferenceRevTransformer(TransformerMixin, BaseEstimator):
     def transform(self, X, oil_df):
 #         X["YEARMONTH"] = pd.to_datetime(X["YEARMONTH"], format="%Y-%m")
         X = X.merge(oil_df)
-        X = X[(X["quarter"]>self.buffer_start_date)&(X["quarter"]<self.buffer_end_date)]
+        # X = X[(X["quarter"]>self.buffer_start_date)&(X["quarter"]<self.buffer_end_date)]
         
-        X.loc[X["quarter"]>=self.pickup_date,["CM","REV"]] = np.nan
+        # X.loc[X["quarter"]>=self.pickup_date,["CM","REV"]] = np.nan
         X = X.sort_values(["quarter"])
 
         # Aggregate
@@ -227,6 +227,9 @@ class InferenceRevTransformer(TransformerMixin, BaseEstimator):
 
 #         X_agg["quarter_flag"] = 0
 #         X_agg.loc[X_agg.index.month%3==0,'quarter_flag']=1
+        X_agg = X_agg[(X_agg.index>self.buffer_start_date)&(X_agg.index<self.buffer_end_date)]
+        
+        X_agg.loc[X_agg.index>=self.pickup_date,["CM","REV"]] = np.nan
 
         inference_df = X_agg[(X_agg.index>self.start_date)&(X_agg.index<=self.end_date)]
         inference_df = inference_df.fillna(0).dropna()
@@ -244,8 +247,9 @@ class InferenceRevTransformer(TransformerMixin, BaseEstimator):
 
 class InferenceConMarTrTransformer(TransformerMixin, BaseEstimator):
 
-    def __init__(self,rev_data_dict):
+    def __init__(self,rev_data_dict,forecast_start_date):
         self.rev_data_dict = rev_data_dict
+        self.forecast_start_date = forecast_start_date
         
     def fit(self, X, y=None):
         self.columns_ = X.columns
@@ -266,22 +270,27 @@ class InferenceConMarTrTransformer(TransformerMixin, BaseEstimator):
             
         
         og_infer_df = og_infer_df.drop(["rev"],axis=1)
-        
+        X = X[X.index<self.forecast_start_date]
+        X['quarter']=X.index
 
         for basin in self.rev_data_dict.keys():
             chip = self.rev_data_dict[basin].reset_index().copy()
             chip["SL BASIN (CODE)"] = basin
-            
-            
+
+
+            div_infer_df = X[X['SL BASIN (CODE)']==basin]
+            chip = chip.append(div_infer_df)
+            chip = chip.sort_values(['quarter'])
+
             chip['rev_activity(t-1)_'] = chip["rev"].shift(1)
             chip['rev_activity(t-2)_'] = chip["rev"].shift(2)
             chip['rev_activity(t-3)_'] = chip["rev"].shift(3)
-               
-            
+
+            chip = chip[chip['quarter']>=self.forecast_start_date]
             adj_infer_df = adj_infer_df.append(chip[['quarter', "SL BASIN (CODE)" ,'rev',
                 'rev_activity(t-1)_', 'rev_activity(t-2)_', 'rev_activity(t-3)_']])
 
-
+        print('self.forecast_start_date:',self.forecast_start_date)
         cmf_infer_df = adj_infer_df.merge(og_infer_df,on=["quarter","SL BASIN (CODE)"],how="inner")
         cmf_infer_df["rev_activity(t-1)"] = cmf_infer_df["rev_activity(t-1)_"].combine_first(cmf_infer_df["rev_activity(t-1)"])
         cmf_infer_df["rev_activity(t-2)"] = cmf_infer_df["rev_activity(t-2)_"].combine_first(cmf_infer_df["rev_activity(t-2)"])
@@ -298,12 +307,15 @@ class InferenceConMarTrTransformer(TransformerMixin, BaseEstimator):
         cmf_infer_df = cmf_infer_df.drop(["quarter"],axis=1)
         return cmf_infer_df
 
-        
+     
+    
 class InferenceConMarPrTransformer(TransformerMixin, BaseEstimator):
 
-    def __init__(self,pr_df,basins):
+    def __init__(self,pr_df,basins,forecast_start_date):
         self.pr_df = pr_df
         self.basins = basins
+        self.forecast_start_date = forecast_start_date
+        
         
     def fit(self, X, y=None):
         self.columns_ = X.columns
@@ -324,18 +336,23 @@ class InferenceConMarPrTransformer(TransformerMixin, BaseEstimator):
             
         
         og_infer_df = og_infer_df.drop(["rev"],axis=1)
-        
+        X = X[X.index<self.forecast_start_date]
+        X['quarter']=X.index 
 
         for basin in self.basins:
             chip = self.pr_df[self.pr_df["SL BASIN (CODE)"]==basin].reset_index().copy()
-            # chip["SL BASIN (CODE)"] = basin
+            chip["SL BASIN (CODE)"] = basin
             
+            div_infer_df = X[X['SL BASIN (CODE)']==basin]
+            chip = chip.append(div_infer_df)
+            chip = chip.sort_values(['quarter'])
+
             
             chip['rev_activity(t-1)_'] = chip["rev"].shift(1)
             chip['rev_activity(t-2)_'] = chip["rev"].shift(2)
             chip['rev_activity(t-3)_'] = chip["rev"].shift(3)
                
-            
+            chip = chip[chip['quarter']>=self.forecast_start_date]
             adj_infer_df = adj_infer_df.append(chip[['quarter', "SL BASIN (CODE)" ,'rev',
                 'rev_activity(t-1)_', 'rev_activity(t-2)_', 'rev_activity(t-3)_']])
 
@@ -354,64 +371,6 @@ class InferenceConMarPrTransformer(TransformerMixin, BaseEstimator):
     
         cmf_infer_df.index = cmf_infer_df["quarter"]
         cmf_infer_df = cmf_infer_df.drop(["quarter"],axis=1)
-        return cmf_infer_df
-    
-    
-    
-class InferenceConMarPrTransformer(TransformerMixin, BaseEstimator):
-
-    def __init__(self,pr_df,basins):
-        self.pr_df = pr_df
-        self.basins = basins
-        
-    def fit(self, X, y=None):
-        self.columns_ = X.columns
-        return self
-
-    def transform(self, X):
-        adj_infer_df = pd.DataFrame(columns=['quarter', "SL BASIN (CODE)" ,'rev',
-        'rev_activity(t-1)_', 'rev_activity(t-2)_', 'rev_activity(t-3)_'])
-
-        og_infer_df = X.reset_index()
-        
-        # [['YEARMONTH', "SL BASIN (CODE)" ,'rev','rev_activity(t-1)', 'rev_activity(t-2)', 'rev_activity(t-3)','quarter_flag']]
-
-        cols = ['quarter',"SL BASIN (CODE)",'rev_activity(t-1)', 'rev_activity(t-2)', 'rev_activity(t-3)',]
-        
-        for col in cols:
-            og_infer_df[col] = og_infer_df[col].replace({0:np.nan})
-            
-        
-        og_infer_df = og_infer_df.drop(["rev"],axis=1)
-        
-
-        for basin in self.basins:
-            chip = self.pr_df[self.pr_df["SL BASIN (CODE)"]==basin].reset_index().copy()
-            # chip["SL BASIN (CODE)"] = basin
-            
-            
-            chip['rev_activity(t-1)_'] = chip["rev"].shift(1)
-            chip['rev_activity(t-2)_'] = chip["rev"].shift(2)
-            chip['rev_activity(t-3)_'] = chip["rev"].shift(3)
-               
-            
-            adj_infer_df = adj_infer_df.append(chip[['quarter', "SL BASIN (CODE)" ,'rev',
-                'rev_activity(t-1)_', 'rev_activity(t-2)_', 'rev_activity(t-3)_']])
-
-
-        cmf_infer_df = adj_infer_df.merge(og_infer_df,on=["quarter","SL BASIN (CODE)"],how="right")
-        cmf_infer_df["rev_activity(t-1)"] = cmf_infer_df["rev_activity(t-1)_"].combine_first(cmf_infer_df["rev_activity(t-1)"])
-        cmf_infer_df["rev_activity(t-2)"] = cmf_infer_df["rev_activity(t-2)_"].combine_first(cmf_infer_df["rev_activity(t-2)"])
-        cmf_infer_df["rev_activity(t-3)"] = cmf_infer_df["rev_activity(t-3)_"].combine_first(cmf_infer_df["rev_activity(t-3)"])
-        
-        cmf_infer_df = cmf_infer_df.round(2)
-        """
-        cmf_infer_df = cmf_infer_df[['quarter', "SL BASIN (CODE)" ,'rev',
-                'rev_activity(t-1)', 'rev_activity(t-2)', 'rev_activity(t-3)',
-               'quarter_flag']].round(2)
-        """
-    
-        cmf_infer_df.index = cmf_infer_df["quarter"]
-        cmf_infer_df = cmf_infer_df.drop(["quarter"],axis=1)
+        cmf_infer_df = cmf_infer_df.dropna()
         return cmf_infer_df
     
